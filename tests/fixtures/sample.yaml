@@ -1,0 +1,19 @@
+database:
+  host: localhost
+  port: 5432
+  name: myapp
+  max_connections: 100
+
+server:
+  port: 8080
+  debug: false
+  workers: 4
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+feature_flags:
+  enable_cache: true
+  enable_metrics: true
