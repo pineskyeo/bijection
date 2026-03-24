@@ -1,4 +1,4 @@
-"""INI/CFG lexer — transforms section names and key names."""
+"""INI/CFG lexer — transforms section names, key names, and values."""
 import re
 from typing import List
 
@@ -12,8 +12,8 @@ _COMMENT_RE = re.compile(r'^(\s*[;#][^\n]*\n?)')
 _BLANK_RE = re.compile(r'^(\s*\n?)')
 # [section_name]  — capture: (open_bracket)(name)(rest_of_line_including_newline)
 _SECTION_RE = re.compile(r'^(\s*\[)([^\]\n]+)(\][^\n]*\n?)')
-# key = value  — capture: (leading_ws)(key)(separator_and_rest)
-_KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_\-.]*)([ \t]*[=:][^\n]*\n?)')
+# key = value  — capture: (leading_ws)(key)(separator)(value)(newline)
+_KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_\-.]*)( *[=:] *)([^\n]*)(\n?)')
 
 
 class IniLexer(BaseLexer):
@@ -22,7 +22,8 @@ class IniLexer(BaseLexer):
     Transforms:
         - Section names:  [section_name]  → IDENTIFIER
         - Key names:      key = value     → IDENTIFIER
-    Does not transform values or comments.
+        - Values:         key = value     → IDENTIFIER (if non-empty)
+    Does not transform comments.
     """
 
     def tokenize(self, source: str) -> List[Token]:
@@ -51,8 +52,11 @@ class IniLexer(BaseLexer):
             if m:
                 if m.group(1):
                     tokens.append(Token(TokenKind.WHITESPACE, m.group(1)))
-                tokens.append(Token(TokenKind.IDENTIFIER, m.group(2)))
-                tokens.append(Token(TokenKind.SYNTAX, m.group(3)))
+                tokens.append(Token(TokenKind.IDENTIFIER, m.group(2)))  # key
+                tokens.append(Token(TokenKind.SYNTAX, m.group(3)))      # = or :
+                if m.group(4):
+                    tokens.append(Token(TokenKind.IDENTIFIER, m.group(4)))  # value
+                tokens.append(Token(TokenKind.SYNTAX, m.group(5)))      # \n
                 pos += m.end()
                 continue
 

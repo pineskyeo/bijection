@@ -38,6 +38,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--ext", nargs="*", default=None,
         help="File extensions to include (e.g. --ext py c cpp). Default: all supported.",
     )
+    p_t.add_argument(
+        "--include", dest="include_path", default=None,
+        help="Path to a file listing identifiers to transform (one per line). "
+             "If omitted, all identifiers are transformed.",
+    )
+
+    # ── list-identifiers ───────────────────────────────────────────────
+    p_l = sub.add_parser(
+        "list-identifiers",
+        help="List all unique identifiers found in source files (no transformation).",
+    )
+    p_l.add_argument("source", help="Source file or directory.")
+    p_l.add_argument(
+        "--ext", nargs="*", default=None,
+        help="File extensions to include.",
+    )
+    p_l.add_argument(
+        "--output", default=None,
+        help="Write identifier list to this file instead of stdout.",
+    )
 
     # ── restore ────────────────────────────────────────────────────────
     p_r = sub.add_parser("restore", help="Restore transformed files to their originals.")
@@ -97,17 +117,51 @@ def cmd_transform(args: argparse.Namespace) -> int:
         bmap = BijectionMap.load(args.map)
         print(f"Loaded existing map: {args.map} ({len(bmap)} entries)")
 
+    # Load include filter if specified
+    include = None
+    if args.include_path:
+        if not os.path.exists(args.include_path):
+            print(f"ERROR: include file not found: {args.include_path}", file=sys.stderr)
+            return 1
+        with open(args.include_path, "r", encoding="utf-8") as fh:
+            include = {line.strip() for line in fh if line.strip()}
+        print(f"Include filter: {len(include)} identifiers from {args.include_path}")
+
     engine = Engine(bmap, strategy)
 
     if os.path.isfile(args.source):
-        count = engine.transform_file(args.source, args.dest)
+        count = engine.transform_file(args.source, args.dest, include=include)
         print(f"Transformed {args.source} → {args.dest}  ({count} identifiers replaced)")
     else:
-        results = engine.transform_directory(args.source, args.dest, args.ext)
+        results = engine.transform_directory(args.source, args.dest, args.ext, include=include)
         _print_results(results, "replaced")
 
     bmap.save(args.map)
     print(f"Map saved: {args.map} ({len(bmap)} entries total)")
+    return 0
+
+
+def cmd_list_identifiers(args: argparse.Namespace) -> int:
+    from bijection.core.bijection_map import BijectionMap
+    from bijection.core.engine import Engine
+    from bijection.strategies.sequential import SequentialStrategy
+
+    engine = Engine(BijectionMap(), SequentialStrategy())
+
+    if os.path.isfile(args.source):
+        identifiers = engine.list_identifiers(args.source)
+    else:
+        identifiers = engine.list_identifiers_directory(args.source, args.ext)
+
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(identifiers) + ("\n" if identifiers else ""))
+        print(f"Wrote {len(identifiers)} identifiers to {args.output}")
+    else:
+        for ident in identifiers:
+            print(ident)
+        print(f"\nTotal: {len(identifiers)} unique identifiers", file=sys.stderr)
+
     return 0
 
 
@@ -237,6 +291,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "restore": cmd_restore,
         "verify": cmd_verify,
         "show-map": cmd_show_map,
+        "list-identifiers": cmd_list_identifiers,
     }
     return dispatch[args.command](args)
 
