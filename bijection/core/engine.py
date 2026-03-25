@@ -176,6 +176,7 @@ SUPPORTED_EXTENSIONS = {
     ".rspec",
     ".bspec",
     ".dspec",
+    ".mspec",
 }
 
 
