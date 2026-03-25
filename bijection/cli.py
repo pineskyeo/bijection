@@ -336,15 +336,15 @@ def cmd_verify(args: argparse.Namespace) -> int:
 # ------------------------------------------------------------------
 
 def _encode_str(s: str) -> str:
-    """Encode each character as 2-digit decimal (ord - 32)."""
-    return ''.join(f'{ord(c) - 32:02d}' for c in s)
+    """Encode a string to base64."""
+    import base64
+    return base64.b64encode(s.encode("utf-8")).decode("ascii")
 
 
 def _decode_str(s: str) -> str:
-    """Decode a string produced by _encode_str."""
-    if len(s) % 2 != 0:
-        raise ValueError(f"Encoded string length must be even, got {len(s)}: {s!r}")
-    return ''.join(chr(int(s[i:i+2]) + 32) for i in range(0, len(s), 2))
+    """Decode a base64 string produced by _encode_str."""
+    import base64
+    return base64.b64decode(s.encode("ascii")).decode("utf-8")
 
 
 def cmd_encode_map(args: argparse.Namespace) -> int:
