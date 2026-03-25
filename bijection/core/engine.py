@@ -175,6 +175,7 @@ SUPPORTED_EXTENSIONS = {
     ".json", ".yaml", ".yml", ".ini", ".cfg", ".md",
     ".rspec",
     ".bspec",
+    ".dspec",
 }
 
 

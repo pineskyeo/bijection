@@ -25,6 +25,7 @@ def _get_lexer_for_ext(ext: str) -> "BaseLexer":
     from bijection.lexers.markdown_lexer import MarkdownLexer
     from bijection.lexers.rspec_lexer import RSpecLexer
     from bijection.lexers.bspec_lexer import BSpecLexer
+    from bijection.lexers.dspec_lexer import DSpecLexer
 
     mapping = {
         ".py": lambda: CodeLexer("python"),
@@ -46,6 +47,7 @@ def _get_lexer_for_ext(ext: str) -> "BaseLexer":
         ".md": MarkdownLexer,
         ".rspec": RSpecLexer,
         ".bspec": BSpecLexer,
+        ".dspec": DSpecLexer,
     }
 
     factory = mapping.get(ext)
