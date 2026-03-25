@@ -173,6 +173,7 @@ SUPPORTED_EXTENSIONS = {
     ".py", ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp",
     ".sh", ".bash", ".pl", ".pm",
     ".json", ".yaml", ".yml", ".ini", ".cfg", ".md",
+    ".pspec",
 }
 
 
