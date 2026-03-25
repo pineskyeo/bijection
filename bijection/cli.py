@@ -94,6 +94,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to bijection map file. Default: bijection_map.json",
     )
 
+    # ── encode-map ─────────────────────────────────────────────────────
+    p_em = sub.add_parser(
+        "encode-map",
+        help="Encode original identifiers (map keys) to numeric strings. "
+             "Transformed values (bij_*) are kept as-is.",
+    )
+    p_em.add_argument(
+        "--map", default="bijection_map.json",
+        help="Path to input bijection map file. Default: bijection_map.json",
+    )
+    p_em.add_argument(
+        "--output", default=None,
+        help="Output path for encoded map. Defaults to overwriting --map.",
+    )
+
+    # ── decode-map ─────────────────────────────────────────────────────
+    p_dm = sub.add_parser(
+        "decode-map",
+        help="Decode numeric-encoded original identifiers back to plaintext.",
+    )
+    p_dm.add_argument(
+        "--map", default="bijection_map.json",
+        help="Path to encoded bijection map file. Default: bijection_map.json",
+    )
+    p_dm.add_argument(
+        "--output", default=None,
+        help="Output path for decoded map. Defaults to overwriting --map.",
+    )
+
     return parser
 
 
@@ -241,6 +270,63 @@ def cmd_verify(args: argparse.Namespace) -> int:
             return 0
 
 
+# ------------------------------------------------------------------
+# Numeric codec helpers
+# ------------------------------------------------------------------
+
+def _encode_str(s: str) -> str:
+    """Encode each character as 2-digit decimal (ord - 32)."""
+    return ''.join(f'{ord(c) - 32:02d}' for c in s)
+
+
+def _decode_str(s: str) -> str:
+    """Decode a string produced by _encode_str."""
+    if len(s) % 2 != 0:
+        raise ValueError(f"Encoded string length must be even, got {len(s)}: {s!r}")
+    return ''.join(chr(int(s[i:i+2]) + 32) for i in range(0, len(s), 2))
+
+
+def cmd_encode_map(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.map):
+        print(f"ERROR: map file not found: {args.map}", file=sys.stderr)
+        return 1
+    bmap = BijectionMap.load(args.map)
+    encoded: dict = {}
+    for original, transformed in bmap.forward_map.items():
+        encoded[_encode_str(original)] = transformed
+    out_path = args.output or args.map
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump({"forward": encoded}, fh, indent=2, ensure_ascii=False)
+    print(f"Encoded {len(encoded)} identifiers → {out_path}")
+    return 0
+
+
+def cmd_decode_map(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.map):
+        print(f"ERROR: map file not found: {args.map}", file=sys.stderr)
+        return 1
+    with open(args.map, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    decoded: dict = {}
+    errors = 0
+    for encoded_key, transformed in data["forward"].items():
+        try:
+            decoded[_decode_str(encoded_key)] = transformed
+        except (ValueError, OverflowError) as exc:
+            print(f"WARNING: cannot decode key {encoded_key!r}: {exc}", file=sys.stderr)
+            decoded[encoded_key] = transformed
+            errors += 1
+    out_path = args.output or args.map
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump({"forward": decoded}, fh, indent=2, ensure_ascii=False)
+    print(f"Decoded {len(decoded)} identifiers → {out_path}")
+    if errors:
+        print(f"WARNING: {errors} key(s) could not be decoded and were kept as-is.", file=sys.stderr)
+    return 0
+
+
 def cmd_show_map(args: argparse.Namespace) -> int:
     if not os.path.exists(args.map):
         print(f"Map file not found: {args.map}", file=sys.stderr)
@@ -292,6 +378,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "verify": cmd_verify,
         "show-map": cmd_show_map,
         "list-identifiers": cmd_list_identifiers,
+        "encode-map": cmd_encode_map,
+        "decode-map": cmd_decode_map,
     }
     return dispatch[args.command](args)
 
