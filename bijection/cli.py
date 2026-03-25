@@ -151,6 +151,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output path. Defaults to overwriting --map.",
     )
 
+    # ── pack ───────────────────────────────────────────────────────────
+    p_pk = sub.add_parser(
+        "pack",
+        help="Transform files then encode+compact the map in one step.",
+    )
+    p_pk.add_argument("source", help="Source file or directory.")
+    p_pk.add_argument("dest", help="Destination file or directory for transformed output.")
+    p_pk.add_argument(
+        "--map", default="bijection_map.json",
+        help="Path to output map file. Default: bijection_map.json",
+    )
+    p_pk.add_argument(
+        "--strategy", default="sequential",
+        choices=["sequential", "hash", "dict"],
+        help="Naming strategy. Default: sequential",
+    )
+    p_pk.add_argument("--dict", dest="dict_path", default=None)
+    p_pk.add_argument("--ext", nargs="*", default=None)
+    p_pk.add_argument("--include", dest="include_path", default=None)
+
+    # ── unpack ─────────────────────────────────────────────────────────
+    p_up = sub.add_parser(
+        "unpack",
+        help="Expand+decode map then restore files in one step.",
+    )
+    p_up.add_argument("source", help="Transformed file or directory.")
+    p_up.add_argument("dest", help="Destination file or directory for restored output.")
+    p_up.add_argument(
+        "--map", default="bijection_map.json",
+        help="Path to packed map file. Default: bijection_map.json",
+    )
+    p_up.add_argument("--ext", nargs="*", default=None)
+
     return parser
 
 
@@ -355,6 +388,38 @@ def cmd_decode_map(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pack(args: argparse.Namespace) -> int:
+    """transform → encode-map → compact-map in one shot."""
+    # 1. transform
+    rc = cmd_transform(args)
+    if rc != 0:
+        return rc
+    # 2. encode-map (in-place)
+    enc_args = argparse.Namespace(map=args.map, output=args.map)
+    rc = cmd_encode_map(enc_args)
+    if rc != 0:
+        return rc
+    # 3. compact-map (in-place)
+    cmp_args = argparse.Namespace(map=args.map, output=args.map)
+    return cmd_compact_map(cmp_args)
+
+
+def cmd_unpack(args: argparse.Namespace) -> int:
+    """expand-map → decode-map → restore in one shot."""
+    # 1. expand-map (in-place)
+    xp_args = argparse.Namespace(map=args.map, output=args.map)
+    rc = cmd_expand_map(xp_args)
+    if rc != 0:
+        return rc
+    # 2. decode-map (in-place)
+    dc_args = argparse.Namespace(map=args.map, output=args.map)
+    rc = cmd_decode_map(dc_args)
+    if rc != 0:
+        return rc
+    # 3. restore
+    return cmd_restore(args)
+
+
 def cmd_compact_map(args: argparse.Namespace) -> int:
     if not os.path.exists(args.map):
         print(f"ERROR: map file not found: {args.map}", file=sys.stderr)
@@ -463,6 +528,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "decode-map": cmd_decode_map,
         "compact-map": cmd_compact_map,
         "expand-map": cmd_expand_map,
+        "pack": cmd_pack,
+        "unpack": cmd_unpack,
     }
     return dispatch[args.command](args)
 
