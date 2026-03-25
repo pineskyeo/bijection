@@ -123,6 +123,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output path for decoded map. Defaults to overwriting --map.",
     )
 
+    # ── compact-map ────────────────────────────────────────────────────
+    p_cm = sub.add_parser(
+        "compact-map",
+        help="Compact the map into two parallel arrays (minimal JSON size).",
+    )
+    p_cm.add_argument(
+        "--map", default="bijection_map.json",
+        help="Path to bijection map file. Default: bijection_map.json",
+    )
+    p_cm.add_argument(
+        "--output", default=None,
+        help="Output path. Defaults to overwriting --map.",
+    )
+
+    # ── expand-map ─────────────────────────────────────────────────────
+    p_xm = sub.add_parser(
+        "expand-map",
+        help="Expand a compacted map back to standard {forward: {...}} format.",
+    )
+    p_xm.add_argument(
+        "--map", default="bijection_map.json",
+        help="Path to compacted map file. Default: bijection_map.json",
+    )
+    p_xm.add_argument(
+        "--output", default=None,
+        help="Output path. Defaults to overwriting --map.",
+    )
+
     return parser
 
 
@@ -327,13 +355,66 @@ def cmd_decode_map(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compact_map(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.map):
+        print(f"ERROR: map file not found: {args.map}", file=sys.stderr)
+        return 1
+    with open(args.map, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    # Support both standard {"forward": {...}} and already-compacted {"k":[],"v":[]}
+    if "forward" in data:
+        fwd = data["forward"]
+    elif "k" in data and "v" in data:
+        fwd = dict(zip(data["k"], data["v"]))
+    else:
+        print("ERROR: unrecognised map format", file=sys.stderr)
+        return 1
+    keys = list(fwd.keys())
+    vals = list(fwd.values())
+    compact = json.dumps({"k": keys, "v": vals}, ensure_ascii=False, separators=(',', ':'))
+    out_path = args.output or args.map
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        fh.write(compact)
+    original_size = os.path.getsize(args.map)
+    compact_size = len(compact.encode("utf-8"))
+    print(f"Compacted {len(keys)} entries → {out_path}  ({original_size} → {compact_size} bytes)")
+    return 0
+
+
+def cmd_expand_map(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.map):
+        print(f"ERROR: map file not found: {args.map}", file=sys.stderr)
+        return 1
+    with open(args.map, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    if "k" not in data or "v" not in data:
+        print("ERROR: not a compacted map (expected 'k' and 'v' arrays)", file=sys.stderr)
+        return 1
+    fwd = dict(zip(data["k"], data["v"]))
+    out_path = args.output or args.map
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump({"forward": fwd}, fh, indent=2, ensure_ascii=False)
+    print(f"Expanded {len(fwd)} entries → {out_path}")
+    return 0
+
+
 def cmd_show_map(args: argparse.Namespace) -> int:
     if not os.path.exists(args.map):
         print(f"Map file not found: {args.map}", file=sys.stderr)
         return 1
-    bmap = BijectionMap.load(args.map)
-    print(f"Bijection map ({len(bmap)} entries):")
-    for original, transformed in sorted(bmap.forward_map.items()):
+    with open(args.map, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    if "k" in data and "v" in data:
+        fwd = dict(zip(data["k"], data["v"]))
+    elif "forward" in data:
+        fwd = data["forward"]
+    else:
+        print("ERROR: unrecognised map format", file=sys.stderr)
+        return 1
+    print(f"Bijection map ({len(fwd)} entries):")
+    for original, transformed in sorted(fwd.items()):
         print(f"  {original:30s} → {transformed}")
     return 0
 
@@ -380,6 +461,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "list-identifiers": cmd_list_identifiers,
         "encode-map": cmd_encode_map,
         "decode-map": cmd_decode_map,
+        "compact-map": cmd_compact_map,
+        "expand-map": cmd_expand_map,
     }
     return dispatch[args.command](args)
 
