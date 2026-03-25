@@ -1,4 +1,4 @@
-"""Parameter specification (.pspec) lexer.
+"""Parameter specification (.rspec) lexer.
 
 Line format:
     name1[,name2,...]:key1=val1,key2=val2,...
@@ -20,8 +20,8 @@ from bijection.lexers.base import BaseLexer
 _IDENT_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_\-.]*')
 
 
-class PSpecLexer(BaseLexer):
-    """Line-by-line lexer for .pspec parameter specification files."""
+class RSpecLexer(BaseLexer):
+    """Line-by-line lexer for .rspec parameter specification files."""
 
     def tokenize(self, source: str) -> List[Token]:
         tokens: List[Token] = []

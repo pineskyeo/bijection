@@ -23,7 +23,7 @@ def _get_lexer_for_ext(ext: str) -> "BaseLexer":
     from bijection.lexers.yaml_lexer import YamlLexer
     from bijection.lexers.ini_lexer import IniLexer
     from bijection.lexers.markdown_lexer import MarkdownLexer
-    from bijection.lexers.pspec_lexer import PSpecLexer
+    from bijection.lexers.rspec_lexer import RSpecLexer
     from bijection.lexers.bspec_lexer import BSpecLexer
 
     mapping = {
@@ -44,7 +44,7 @@ def _get_lexer_for_ext(ext: str) -> "BaseLexer":
         ".ini": IniLexer,
         ".cfg": IniLexer,
         ".md": MarkdownLexer,
-        ".pspec": PSpecLexer,
+        ".rspec": RSpecLexer,
         ".bspec": BSpecLexer,
     }
 
