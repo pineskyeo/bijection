@@ -174,6 +174,7 @@ SUPPORTED_EXTENSIONS = {
     ".sh", ".bash", ".pl", ".pm",
     ".json", ".yaml", ".yml", ".ini", ".cfg", ".md",
     ".pspec",
+    ".bspec",
 }
 
 
