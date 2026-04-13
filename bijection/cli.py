@@ -10,6 +10,25 @@ from bijection.core.engine import Engine
 from bijection.strategies import get_strategy
 
 
+def _parse_keys_file(path: str) -> set:
+    """Parse a keys file supporting multiple formats:
+    - Plain list (one word per line)
+    - Markdown list (- word)
+    - Comments (# ...) and blank lines are skipped
+    """
+    keys: set = set()
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("- "):
+                line = line[2:].strip()
+            if line:
+                keys.add(line)
+    return keys
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bijection",
@@ -184,6 +203,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_up.add_argument("--ext", nargs="*", default=None)
 
+    # ── diff-keys ─────────────────────────────────────────────────────
+    p_dk = sub.add_parser(
+        "diff-keys",
+        help="Compare identifiers in source code against a keys file. "
+             "Shows which identifiers are missing from the keys file.",
+    )
+    p_dk.add_argument("source", help="Source file or directory to scan.")
+    p_dk.add_argument(
+        "--keys", required=True,
+        help="Path to keys file (supports plain list, markdown list, comments).",
+    )
+    p_dk.add_argument(
+        "--ext", nargs="*", default=None,
+        help="File extensions to include.",
+    )
+    p_dk.add_argument(
+        "--output", default=None,
+        help="Write missing identifiers to this file instead of stdout.",
+    )
+
     return parser
 
 
@@ -213,8 +252,7 @@ def cmd_transform(args: argparse.Namespace) -> int:
         if not os.path.exists(args.include_path):
             print(f"ERROR: include file not found: {args.include_path}", file=sys.stderr)
             return 1
-        with open(args.include_path, "r", encoding="utf-8") as fh:
-            include = {line.strip() for line in fh if line.strip()}
+        include = _parse_keys_file(args.include_path)
         print(f"Include filter: {len(include)} identifiers from {args.include_path}")
 
     engine = Engine(bmap, strategy)
@@ -251,6 +289,53 @@ def cmd_list_identifiers(args: argparse.Namespace) -> int:
         for ident in identifiers:
             print(ident)
         print(f"\nTotal: {len(identifiers)} unique identifiers", file=sys.stderr)
+
+    return 0
+
+
+def cmd_diff_keys(args: argparse.Namespace) -> int:
+    """Show identifiers found in code but missing from the keys file."""
+    from bijection.core.bijection_map import BijectionMap
+    from bijection.core.engine import Engine
+    from bijection.strategies.sequential import SequentialStrategy
+
+    if not os.path.exists(args.keys):
+        print(f"ERROR: keys file not found: {args.keys}", file=sys.stderr)
+        return 1
+
+    keys = _parse_keys_file(args.keys)
+    engine = Engine(BijectionMap(), SequentialStrategy())
+
+    if os.path.isfile(args.source):
+        identifiers = engine.list_identifiers(args.source)
+    else:
+        identifiers = engine.list_identifiers_directory(args.source, args.ext)
+
+    code_idents = set(identifiers)
+    missing = sorted(code_idents - keys)
+    covered = code_idents & keys
+    extra = sorted(keys - code_idents)
+
+    print(f"Code identifiers:  {len(code_idents)}")
+    print(f"Keys file:         {len(keys)}")
+    print(f"Covered (in both): {len(covered)}")
+    print(f"Missing from keys: {len(missing)}")
+    print(f"Extra in keys:     {len(extra)}")
+
+    if missing:
+        print(f"\n--- Missing from keys ({len(missing)}) ---")
+        for ident in missing:
+            print(f"  {ident}")
+
+    if extra:
+        print(f"\n--- Extra in keys (not found in code) ({len(extra)}) ---")
+        for ident in extra:
+            print(f"  {ident}")
+
+    if args.output and missing:
+        with open(args.output, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(missing) + "\n")
+        print(f"\nMissing identifiers written to {args.output}")
 
     return 0
 
@@ -530,6 +615,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "expand-map": cmd_expand_map,
         "pack": cmd_pack,
         "unpack": cmd_unpack,
+        "diff-keys": cmd_diff_keys,
     }
     return dispatch[args.command](args)
 
